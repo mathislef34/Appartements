@@ -100,7 +100,7 @@ function updateUnlocatedList(list) {
 
 async function loadData() {
   try {
-    const res = await fetch('data/apartments.json', { cache: 'no-store' });
+    const res = await fetch('data/apartments.json?v=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
     DATA = Array.isArray(data) ? data : [];
   } catch (e) {
@@ -394,3 +394,4 @@ function val(v) {
   return s.length ? s : '';
 
 }
+
