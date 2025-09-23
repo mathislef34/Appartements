@@ -9,33 +9,20 @@
     "surface_m2": 46.7,
     "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/249573765.htm",
     "label": "Beaux-Arts",
-    "latitude": 43.6059655,
-    "longitude": 3.8472925
+    "latitude": null,
+    "longitude": 800.0
   },
   {
-    "loyer": 800,
+    "loyer": 673,
     "adresse": null,
-    "cuisine_equipee": "non",
-    "type": "T3",
-    "parking": null,
-    "chambres": null,
-    "surface_m2": 63.0,
-    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/estanove/250155421.htm",
-    "label": "Estanove",
-    "latitude": 43.5968814,
-    "longitude": 3.8563888
-  },
-  {
-    "loyer": 750,
-    "adresse": null,
-    "cuisine_equipee": "non",
+    "cuisine_equipee": "oui",
     "type": "T2",
     "parking": "oui",
-    "chambres": 1,
-    "surface_m2": 43.0,
-    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/pas-du-loup/248743275.htm",
-    "label": "Pas du Loup",
-    "latitude": 43.7150931,
-    "longitude": 4.8619593
+    "chambres": 4,
+    "surface_m2": 41.0,
+    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/lemasson/250551083.htm",
+    "label": "Lemasson",
+    "latitude": null,
+    "longitude": null
   }
 ]
