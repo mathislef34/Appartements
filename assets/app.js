@@ -333,8 +333,14 @@ function downloadFile(filename, mime, content) {
 // Ouvre un nouvel Issue prérempli avec le contenu du dernier formulaire saisi.
 // L’Action GitHub lira ce YAML et mettra à jour data/apartments.csv + apartments.json.
 const sendToGitHubBtn = document.getElementById('sendToGitHubBtn');
+let sendingLock = false;
+
 if (sendToGitHubBtn) {
-  sendToGitHubBtn.addEventListener('click', () => {
+  sendToGitHubBtn.addEventListener('click', async () => {
+    if (sendingLock) return;
+    sendingLock = true;
+    setTimeout(() => (sendingLock = false), 1200); // anti double-clic 1,2s
+
     const cfg = window.APP_CONFIG || {};
     if (!cfg.owner || !cfg.repo) {
       alert("Config GitHub manquante (assets/config.js).");
@@ -342,7 +348,6 @@ if (sendToGitHubBtn) {
     }
 
     const formData = new FormData(document.getElementById('addForm'));
-
     const row = {
       loyer: val(formData.get('loyer')),
       adresse: val(formData.get('adresse')),
@@ -357,10 +362,8 @@ if (sendToGitHubBtn) {
       longitude: val(formData.get('longitude')),
     };
 
-    // Titre de l’issue
     const title = `Nouvel appartement: ${row.adresse || row.label || '(sans adresse)'}`;
 
-    // Corps de l’issue en YAML dans un code fence pour parsing robuste
     const yaml = [
       '```yaml',
       `loyer: ${row.loyer || ''}`,
@@ -379,7 +382,7 @@ if (sendToGitHubBtn) {
       '_Issue généré depuis GitHub Pages._'
     ].join('\n');
 
-    // Label optionnel pour filtrer les actions
+    // Si tu veux garder ton label “Appartements”, laisse-le ici :
     const labels = encodeURIComponent('Appartements');
 
     const url = `https://github.com/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}` +
@@ -394,4 +397,5 @@ function val(v) {
   return s.length ? s : '';
 
 }
+
 
