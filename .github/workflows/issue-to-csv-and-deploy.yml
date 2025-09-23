@@ -5,26 +5,22 @@ on:
     types: [opened, labeled, edited, reopened]
 
 permissions:
-  contents: write      # pour commit/push
-  issues: write        # pour commenter/fermer l'issue
-  pages: write         # pour déployer Pages
+  contents: write      # commit & push
+  issues: write        # commenter/fermer l'issue
+  pages: write         # déployer GitHub Pages
   id-token: write      # requis par deploy-pages@v4
   actions: read        # requis par deploy-pages@v4
 
 jobs:
   update_and_deploy:
-    # On déclenche si le corps de l’issue contient un bloc ```yaml ... ```
-    # (plus robuste que de dépendre d’un label précis)
-    if: contains(github.event.issue.body, '```yaml')
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-
+    # NB: on NE filtre pas ici pour pouvoir commenter/fermer les issues mal formées
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -33,37 +29,91 @@ jobs:
           python -m pip install --upgrade pip
           pip install geopy pyyaml
 
-      - name: Parse issue body (YAML) → append CSV
+      # -- Parse de l'issue + détection doublon --------------------------------
+      - name: Parse issue body (YAML) & check duplicate
+        id: parse
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           python - <<'PY'
-          import os, sys, csv, re, yaml, pathlib
+          import os, sys, csv, re, yaml, pathlib, json
+
           issue = os.environ.get("ISSUE_BODY","")
           m = re.search(r"```yaml(.*?)```", issue, re.S|re.I)
+
+          # Sorties pour les étapes suivantes
+          out = pathlib.Path(os.environ['GITHUB_OUTPUT']).open('a')
+
           if not m:
               print("No YAML block found in issue body.")
-              sys.exit(1)
+              print("no_yaml=true", file=out)
+              print("duplicate=false", file=out)
+              out.close()
+              sys.exit(0)
+
           data = yaml.safe_load(m.group(1)) or {}
           def norm(v): return "" if v is None else str(v).strip()
-          row = [ norm(data.get(k)) for k in [
-            "loyer","adresse","cuisine_equipee","type","parking",
-            "chambres","surface_m2","url","label","latitude","longitude"
-          ] ]
+
+          fields = ["loyer","adresse","cuisine_equipee","type","parking",
+                    "chambres","surface_m2","url","label","latitude","longitude"]
+          row = [ norm(data.get(k)) for k in fields ]
+
+          url = row[7]
+          adresse = row[1].lower()
+          loyer = row[0]
+
+          p = pathlib.Path("data/apartments.csv")
+          duplicate = False
+          if p.exists():
+              with p.open("r", encoding="utf-8-sig", newline="") as f:
+                  reader = csv.DictReader(f)
+                  for r in reader:
+                      r_url = norm(r.get("url"))
+                      r_addr = norm(r.get("adresse")).lower()
+                      r_loyer = norm(r.get("loyer"))
+                      if url and r_url and url == r_url:
+                          duplicate = True; break
+                      if adresse and loyer and r_addr == adresse and r_loyer == loyer:
+                          duplicate = True; break
+
+          # Sauvegarde la ligne pour l'étape suivante
+          pathlib.Path("tmp_row.json").write_text(json.dumps(row, ensure_ascii=False), encoding="utf-8")
+
+          print("no_yaml=false", file=out)
+          print(f"duplicate={'true' if duplicate else 'false'}", file=out)
+          out.close()
+          PY
+
+      # -- Append CSV seulement si YAML présent & pas doublon -------------------
+      - name: Append row to CSV
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
+        run: |
+          python - <<'PY'
+          import csv, json, pathlib
+          fields = ["loyer","adresse","cuisine_equipee","type","parking",
+                    "chambres","surface_m2","url","label","latitude","longitude"]
+          row = json.loads(pathlib.Path("tmp_row.json").read_text(encoding="utf-8"))
           p = pathlib.Path("data/apartments.csv")
           p.parent.mkdir(parents=True, exist_ok=True)
-          header = "loyer,adresse,cuisine_equipee,type,parking,chambres,surface_m2,url,label,latitude,longitude\n"
-          if not p.exists() or not p.read_text(encoding="utf-8").strip():
-              p.write_text(header, encoding="utf-8")
+          if not p.exists() or not p.read_text(encoding="utf-8", errors="ignore").strip():
+              p.write_text(",".join(fields) + "\n", encoding="utf-8")
           with p.open("a", encoding="utf-8", newline="") as f:
               csv.writer(f).writerow(row)
           print("CSV updated")
           PY
 
+      # -- Géocodage serveur → JSON --------------------------------------------
       - name: Geocode CSV → JSON
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
+        env:
+          # Optionnel : définissez GEO_CITY_HINT dans Settings → Secrets and variables → Variables
+          # Ex: "Montpellier, France" ; le script a une valeur par défaut si absent.
+          GEO_CITY_HINT: ${{ vars.GEO_CITY_HINT }}
         run: python scripts/geocode.py
 
+      # -- Commit & push --------------------------------------------------------
       - name: Commit changes
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -71,28 +121,41 @@ jobs:
           git diff --cached --quiet || git commit -m "chore(data): add apartment from issue #${{ github.event.issue.number }}"
           git push
 
-      # --- Déploiement GitHub Pages (Actions) ---
+      # -- Déploiement GitHub Pages via Actions --------------------------------
       - name: Configure GitHub Pages
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."     # on publie la racine du repo
+          path: "."   # publier la racine du repo
 
       - name: Deploy to GitHub Pages
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
         id: deploy
         uses: actions/deploy-pages@v4
 
-      # --- Commentaire + fermeture d'issue via GH CLI (sans action tierce) ---
-      - name: Comment issue
+      # -- Succès : commenter + fermer -----------------------------------------
+      - name: Comment success & close
+        if: steps.parse.outputs.no_yaml == 'false' && steps.parse.outputs.duplicate == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --body "✅ Ajouté au CSV, JSON régénéré et site déployé. URL : ${{ steps.deploy.outputs.page_url }}"
+          URL="${{ steps.deploy.outputs.page_url }}"
+          gh issue comment "${{ github.event.issue.number }}" --body "✅ Ajouté au CSV, JSON régénéré et site déployé.\nURL : ${URL}"
+          gh issue close "${{ github.event.issue.number }}" --comment "Fermeture automatique."
 
-      - name: Close issue
+      # -- Cas doublon / YAML manquant : commenter + fermer ---------------------
+      - name: Comment duplicate or bad format & close
+        if: steps.parse.outputs.no_yaml == 'true' || steps.parse.outputs.duplicate == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh issue close "${{ github.event.issue.number }}" --comment "Fermeture automatique."
+        run: |
+          if [ "${{ steps.parse.outputs.no_yaml }}" = "true" ]; then
+            gh issue comment "${{ github.event.issue.number }}" --body "⚠️ Format incorrect (bloc \`\`\`yaml manquant). Aucun changement.\nUtilisez le bouton du site ou le template d’issue."
+          else
+            gh issue comment "${{ github.event.issue.number }}" --body "⛔ Doublon détecté (URL ou [adresse+loyer]) — aucune modification."
+          fi
+          gh issue close "${{ github.event.issue.number }}" --comment "Fermeture automatique."
