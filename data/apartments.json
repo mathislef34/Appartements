@@ -1,27 +1,14 @@
 [
   {
     "loyer": 754,
-    "adresse": "11 Rue des Bleuets, 34000 Montpellier",
-    "cuisine_equipee": "oui",
+    "adresse": "11 rue des bleuets",
+    "cuisine_equipee": "non",
     "type": "T2",
     "parking": "oui",
     "chambres": 1,
     "surface_m2": 46.7,
     "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/249573765.htm",
-    "label": "Beaux-Arts",
-    "latitude": null,
-    "longitude": 800.0
-  },
-  {
-    "loyer": 673,
-    "adresse": null,
-    "cuisine_equipee": "oui",
-    "type": "T2",
-    "parking": "oui",
-    "chambres": 4,
-    "surface_m2": 41.0,
-    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/lemasson/250551083.htm",
-    "label": "Lemasson",
+    "label": null,
     "latitude": null,
     "longitude": null
   }
