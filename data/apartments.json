@@ -11,5 +11,18 @@
     "label": "Beaux-Arts",
     "latitude": 43.6059655,
     "longitude": 3.8472925
+  },
+  {
+    "loyer": 800,
+    "adresse": null,
+    "cuisine_equipee": "non",
+    "type": "T3",
+    "parking": null,
+    "chambres": null,
+    "surface_m2": 63.0,
+    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/estanove/250155421.htm",
+    "label": "Estanove",
+    "latitude": 43.5968814,
+    "longitude": 3.8563888
   }
 ]
