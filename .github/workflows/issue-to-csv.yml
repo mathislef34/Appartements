@@ -1,23 +1,26 @@
-name: Issue → CSV + Geocode
+name: Issue → CSV + Geocode + Deploy Pages
 
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled, edited, reopened]
 
 permissions:
   contents: write
   issues: write
+  pages: write
+  id-token: write
 
 jobs:
-  update_csv_and_json:
-    if: contains(github.event.issue.labels.*.name, 'apartment')
+  update_and_deploy:
+    if: contains(github.event.issue.body, '```yaml') || contains(join(github.event.issue.labels.*.name, ','), 'apartment')
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -27,72 +30,60 @@ jobs:
           pip install geopy pyyaml
 
       - name: Parse issue body (YAML) → append CSV
-        id: parse
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           python - <<'PY'
-          import os, sys, csv, io, re, yaml, pathlib
+          import os, sys, csv, re, yaml, pathlib
           issue = os.environ.get("ISSUE_BODY","")
           m = re.search(r"```yaml(.*?)```", issue, re.S|re.I)
           if not m:
               print("No YAML block found in issue body.")
               sys.exit(1)
           data = yaml.safe_load(m.group(1)) or {}
-          # Sanitize/normalize
-          def norm(v):
-              if v is None: return ""
-              s = str(v).strip()
-              return s
-          row = [
-            norm(data.get("loyer")),
-            norm(data.get("adresse")),
-            norm(data.get("cuisine_equipee")),
-            norm(data.get("type")),
-            norm(data.get("parking")),
-            norm(data.get("chambres")),
-            norm(data.get("surface_m2")),
-            norm(data.get("url")),
-            norm(data.get("label")),
-            norm(data.get("latitude")),
-            norm(data.get("longitude")),
-          ]
-          csv_path = pathlib.Path("data/apartments.csv")
-          csv_path.parent.mkdir(parents=True, exist_ok=True)
-          header = ["loyer","adresse","cuisine_equipee","type","parking","chambres","surface_m2","url","label","latitude","longitude"]
-          if not csv_path.exists() or csv_path.read_text(encoding="utf-8").strip() == "":
-              csv_path.write_text(",".join(header) + "\n", encoding="utf-8")
-          # Append row
-          with csv_path.open("a", encoding="utf-8", newline="") as f:
-              writer = csv.writer(f)
-              writer.writerow(row)
-          print("CSV updated")
+          def norm(v): return "" if v is None else str(v).strip()
+          row = [ norm(data.get(k)) for k in ["loyer","adresse","cuisine_equipee","type","parking","chambres","surface_m2","url","label","latitude","longitude"] ]
+          p = pathlib.Path("data/apartments.csv")
+          p.parent.mkdir(parents=True, exist_ok=True)
+          header = "loyer,adresse,cuisine_equipee,type,parking,chambres,surface_m2,url,label,latitude,longitude\n"
+          if not p.exists() or not p.read_text(encoding="utf-8").strip():
+              p.write_text(header, encoding="utf-8")
+          with p.open("a", encoding="utf-8", newline="") as f:
+              csv.writer(f).writerow(row)
           PY
 
       - name: Geocode CSV → JSON
-        run: |
-          python scripts/geocode.py
+        run: python scripts/geocode.py
 
-      - name: Commit & push
+      - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/apartments.csv data/apartments.json
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "chore(data): add apartment from issue #${{ github.event.issue.number }}"
-            git push
-          fi
+          git diff --cached --quiet || git commit -m "chore(data): add apartment from issue #${{ github.event.issue.number }}"
+          git push
+
+      # --- Déploiement GitHub Pages (officiel) ---
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Notre site est statique : on déploie le repo tel quel.
+      # Si tu veux exclure certains dossiers, build une dir 'dist' et change 'path'.
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
 
       - name: Comment & close issue
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            ✅ L’appartement a été ajouté au CSV et la carte sera mise à jour.
-            - Fichier modifié : `data/apartments.csv`
-            - JSON régénéré : `data/apartments.json`
+            ✅ Ajouté au CSV, JSON régénéré et site déployé.
+            URL : ${{ steps.deploy.outputs.page_url }}
 
-      - name: Close issue
-        uses: actions-ecosystem/action-close-issue@v1
+      - uses: actions-ecosystem/action-close-issue@v1
