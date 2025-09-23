@@ -380,7 +380,7 @@ if (sendToGitHubBtn) {
     ].join('\n');
 
     // Label optionnel pour filtrer les actions
-    const labels = encodeURIComponent('apartment');
+    const labels = encodeURIComponent('Appartements');
 
     const url = `https://github.com/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}` +
                 `/issues/new?title=${encodeURIComponent(title)}&labels=${labels}&body=${encodeURIComponent(yaml)}`;
@@ -392,4 +392,5 @@ if (sendToGitHubBtn) {
 function val(v) {
   const s = (v ?? '').toString().trim();
   return s.length ? s : '';
+
 }
