@@ -1,0 +1,25 @@
+name: Ajouter un appartement
+description: Proposer un nouvel appartement à ajouter au CSV
+labels: [apartment]
+body:
+  - type: textarea
+    id: data
+    attributes:
+      label: Données (YAML)
+      description: Collez ici les champs au format YAML (voir exemple).
+      placeholder: |
+        ```yaml
+        loyer:
+        adresse:
+        cuisine_equipee:
+        type:
+        parking:
+        chambres:
+        surface_m2:
+        url:
+        label:
+        latitude:
+        longitude:
+        ```
+    validations:
+      required: true
