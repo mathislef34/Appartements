@@ -1,3 +1,11 @@
+// Restreindre Nominatim côté front (mêmes bornes que le serveur)
+const NOMINATIM_CFG = {
+  countrycodes: 'fr',
+  // viewbox: [left, top, right, bottom]
+  viewbox: [3.75, 43.72, 4.05, 43.53],
+  bounded: 1
+};
+
 // --- Base Leaflet + chargement des données ---
 const map = L.map('map', { scrollWheelZoom: true }).setView([43.61, 3.88], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -257,7 +265,14 @@ async function autogeocodeMissing() {
 
 // ---------- Utilitaires ----------
 async function geocodeAddress(q) {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=fr&q=${encodeURIComponent(q)}`;
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    'accept-language': 'fr',
+    countrycodes: NOMINATIM_CFG.countrycodes,
+    bounded: String(NOMINATIM_CFG.bounded),
+    viewbox: NOMINATIM_CFG.viewbox.join(',')
+  });
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}&q=${encodeURIComponent(q)}`;
   const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
   if (!res.ok) return null;
   const arr = await res.json();
@@ -397,5 +412,6 @@ function val(v) {
   return s.length ? s : '';
 
 }
+
 
 
