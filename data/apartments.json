@@ -1,15 +1,15 @@
 [
   {
     "loyer": 754,
-    "adresse": "11 rue des bleuets, Montpellier",
+    "adresse": "11 Rue des Bleuets, Montpellier",
     "cuisine_equipee": "non",
     "type": "T2",
     "parking": "oui",
     "chambres": 1,
     "surface_m2": 46.7,
     "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/249573765.htm",
-    "label": null,
-    "latitude": null,
-    "longitude": null
+    "label": "La Chamberte",
+    "latitude": 43.605601,
+    "longitude": 3.8449967
   }
 ]
