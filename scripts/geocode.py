@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Geocode a CSV of apartments into data/apartments.json for the Leaflet frontend.
+Geocode a CSV of apartments into data/apartments.json (Leaflet frontend).
 
-Robust to:
-- BOM in header (reads as utf-8-sig)
-- Extra unnamed columns (skips keys == None)
-- Missing address: fallback to `label` (e.g., neighborhood like "Ovalie")
-
-CSV columns (case-insensitive):
-  loyer, adresse, cuisine_equipee, type, parking, chambres, surface_m2, url, label
-optional:
-  latitude, longitude
+- Tolère BOM (utf-8-sig)
+- Ignore colonnes sans en-tête (clé None)
+- Fallback géocodage sur `label` (quartier) avec "city hint"
+- Logs explicites quand une ligne n'est pas géocodée
 """
-import csv, json
+import csv, json, os
 from pathlib import Path
 from typing import Dict, Any
 
@@ -27,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / "data" / "apartments.csv"
 JSON_PATH = ROOT / "data" / "apartments.json"
 CACHE_PATH = ROOT / "data" / ".geocode_cache.json"
+
+# Indice ville par défaut si seule un label/quartier est fourni
+CITY_HINT = os.getenv("GEO_CITY_HINT", "Montpellier, France")
 
 def norm_key(s) -> str:
     if s is None:
@@ -67,18 +65,18 @@ def main():
 
     cache = load_cache()
 
-    # utf-8-sig -> gère un éventuel BOM au début des en-têtes
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     out = []
-    for raw in rows:
-        # Nettoie: enlève les colonnes sans nom (clé None) et normalise les clés/valeurs
+    missing_geo = 0
+
+    for i, raw in enumerate(rows, start=1):
+        # Nettoie: enlève colonnes sans nom et normalise les clés
         row = {}
         for k, v in raw.items():
             if k is None:
-                # ligne avec plus de colonnes que d'en-têtes -> on ignore proprement
                 continue
             kk = norm_key(k)
             row[kk] = v.strip() if isinstance(v, str) else v
@@ -86,25 +84,29 @@ def main():
         lat = to_float(row.get("latitude"))
         lon = to_float(row.get("longitude"))
 
-        # Adresse prioritaire, sinon fallback sur le label (quartier)
-        adr = (row.get("adresse") or "").strip()
-        if not adr:
+        # 1) Adresse si dispo
+        query = (row.get("adresse") or "").strip()
+
+        # 2) Sinon label + ville par défaut
+        if not query:
             lab = (row.get("label") or "").strip()
             if lab:
-                adr = lab  # ex: "Ovalie" ; Nominatim retournera un centroïde si trouvé
+                query = f"{lab}, {CITY_HINT}"
 
-        # Géocode seulement si coordonnées manquantes ET qu'on a une requête (adresse/label)
-        if (lat is None or lon is None) and adr:
-            key = norm_key(adr)
-            # petit cache mémoire/disk pour éviter les répétitions
+        # Géocoder si coords manquantes et qu'on a une requête
+        if (lat is None or lon is None) and query:
+            key = norm_key(query)
             cached = cache.get(key)
             if cached is None:
-                loc = geocode(adr)
+                loc = geocode(query)
                 if loc:
                     cached = {"lat": loc.latitude, "lon": loc.longitude}
                 cache[key] = cached
             if cached:
                 lat, lon = cached["lat"], cached["lon"]
+            else:
+                missing_geo += 1
+                print(f"[WARN] Ligne {i}: géocodage introuvable pour '{query}'")
 
         out.append({
             "loyer": to_int(row.get("loyer")),
@@ -122,7 +124,7 @@ def main():
 
     JSON_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     save_cache(cache)
-    print(f"Écrit: {JSON_PATH} ({len(out)} lignes)")
+    print(f"Écrit: {JSON_PATH} ({len(out)} lignes) ; sans géocodage: {missing_geo}")
 
 if __name__ == "__main__":
     main()
