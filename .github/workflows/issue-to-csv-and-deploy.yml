@@ -1,0 +1,98 @@
+name: Issue → CSV + Geocode + Deploy Pages
+
+on:
+  issues:
+    types: [opened, labeled, edited, reopened]
+
+permissions:
+  contents: write      # pour commit/push
+  issues: write        # pour commenter/fermer l'issue
+  pages: write         # pour déployer Pages
+  id-token: write      # requis par deploy-pages@v4
+  actions: read        # requis par deploy-pages@v4
+
+jobs:
+  update_and_deploy:
+    # On déclenche si le corps de l’issue contient un bloc ```yaml ... ```
+    # (plus robuste que de dépendre d’un label précis)
+    if: contains(github.event.issue.body, '```yaml')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install geopy pyyaml
+
+      - name: Parse issue body (YAML) → append CSV
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python - <<'PY'
+          import os, sys, csv, re, yaml, pathlib
+          issue = os.environ.get("ISSUE_BODY","")
+          m = re.search(r"```yaml(.*?)```", issue, re.S|re.I)
+          if not m:
+              print("No YAML block found in issue body.")
+              sys.exit(1)
+          data = yaml.safe_load(m.group(1)) or {}
+          def norm(v): return "" if v is None else str(v).strip()
+          row = [ norm(data.get(k)) for k in [
+            "loyer","adresse","cuisine_equipee","type","parking",
+            "chambres","surface_m2","url","label","latitude","longitude"
+          ] ]
+          p = pathlib.Path("data/apartments.csv")
+          p.parent.mkdir(parents=True, exist_ok=True)
+          header = "loyer,adresse,cuisine_equipee,type,parking,chambres,surface_m2,url,label,latitude,longitude\n"
+          if not p.exists() or not p.read_text(encoding="utf-8").strip():
+              p.write_text(header, encoding="utf-8")
+          with p.open("a", encoding="utf-8", newline="") as f:
+              csv.writer(f).writerow(row)
+          print("CSV updated")
+          PY
+
+      - name: Geocode CSV → JSON
+        run: python scripts/geocode.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/apartments.csv data/apartments.json
+          git diff --cached --quiet || git commit -m "chore(data): add apartment from issue #${{ github.event.issue.number }}"
+          git push
+
+      # --- Déploiement GitHub Pages (Actions) ---
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."     # on publie la racine du repo
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      # --- Commentaire + fermeture d'issue via GH CLI (sans action tierce) ---
+      - name: Comment issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --body "✅ Ajouté au CSV, JSON régénéré et site déployé. URL : ${{ steps.deploy.outputs.page_url }}"
+
+      - name: Close issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue close "${{ github.event.issue.number }}" --comment "Fermeture automatique."
