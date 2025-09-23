@@ -24,5 +24,18 @@
     "label": "Estanove",
     "latitude": 43.5968814,
     "longitude": 3.8563888
+  },
+  {
+    "loyer": 750,
+    "adresse": null,
+    "cuisine_equipee": "non",
+    "type": "T2",
+    "parking": "oui",
+    "chambres": 1,
+    "surface_m2": 43.0,
+    "url": "https://www.seloger.com/annonces/locations/appartement/montpellier-34/pas-du-loup/248743275.htm",
+    "label": "Pas du Loup",
+    "latitude": 43.7150931,
+    "longitude": 4.8619593
   }
 ]
