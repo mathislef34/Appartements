@@ -11,5 +11,18 @@
     "label": "La Chamberte",
     "latitude": 43.605601,
     "longitude": 3.8449967
+  },
+  {
+    "loyer": 826,
+    "adresse": "649 Rue Georges Denizot",
+    "cuisine_equipee": "oui",
+    "type": "T2",
+    "parking": "oui",
+    "chambres": 1,
+    "surface_m2": 48.0,
+    "url": "https://fr.foncia.com/location/montpellier-34/appartement/331594714.htm",
+    "label": null,
+    "latitude": null,
+    "longitude": null
   }
 ]
